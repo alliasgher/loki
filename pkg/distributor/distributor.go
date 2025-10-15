@@ -24,6 +24,12 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 	"google.golang.org/grpc/codes"
 
+	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.uber.org/atomic"
+
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/limiter"
@@ -31,11 +37,6 @@ import (
 	ring_client "github.com/grafana/dskit/ring/client"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/tenant"
-	lru "github.com/hashicorp/golang-lru/v2"
-	"github.com/pkg/errors"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-	"go.uber.org/atomic"
 
 	"github.com/grafana/loki/v3/pkg/analytics"
 	"github.com/grafana/loki/v3/pkg/compactor/retention"
@@ -197,6 +198,7 @@ type Distributor struct {
 	replicationFactor                     prometheus.Gauge
 	streamShardCount                      prometheus.Counter
 	tenantPushSanitizedStructuredMetadata *prometheus.CounterVec
+	rateLimitBypasses                     prometheus.Counter
 
 	usageTracker   push.UsageTracker
 	ingesterTasks  chan pushIngesterTask
@@ -376,6 +378,11 @@ func New(
 			Name:      "distributor_push_structured_metadata_sanitized_total",
 			Help:      "The total number of times we've had to sanitize structured metadata (names or values) at ingestion time per tenant.",
 		}, []string{"tenant", "format"}),
+		rateLimitBypasses: promauto.With(registerer).NewCounter(prometheus.CounterOpts{
+			Namespace: constants.Loki,
+			Name:      "distributor_rate_limit_bypasses_total",
+			Help:      "The total number of times the distributor's rate-limiting was bypassed via the X-Bypass-Rate-Limit header.",
+		}),
 		kafkaAppends: promauto.With(registerer).NewCounterVec(prometheus.CounterOpts{
 			Namespace: constants.Loki,
 			Name:      "distributor_kafka_appends_total",
@@ -790,7 +797,9 @@ func (d *Distributor) PushWithResolver(ctx context.Context, req *logproto.PushRe
 		return &logproto.PushResponse{}, validationErr
 	}
 
-	if !d.ingestionRateLimiter.AllowN(now, tenantID, totalEntriesSize) {
+	if retrieveRateLimitBypass(ctx) {
+		d.rateLimitBypasses.Inc()
+	} else if !d.ingestionRateLimiter.AllowN(now, tenantID, totalEntriesSize) {
 		d.trackDiscardedData(ctx, req.Streams, validationContext, tenantID, validation.RateLimited, streamResolver, format)
 
 		err = fmt.Errorf(validation.RateLimitedErrorMsg, tenantID, int(d.ingestionRateLimiter.Limit(now, tenantID)), totalLineCount, totalEntriesSize)
