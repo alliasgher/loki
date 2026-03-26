@@ -65,6 +65,7 @@ type segmentationPartitionResolver struct {
 	// Metrics.
 	resolveFailed prometheus.Counter
 	resolveTotal  prometheus.Counter
+	streamSharded prometheus.Counter
 }
 
 // newSegmentationPartitionResolver returns a new segmentationPartitionResolver.
@@ -79,6 +80,10 @@ func newSegmentationPartitionResolver(perPartitionRateBytes uint64, ringReader r
 		resolveTotal: promauto.With(reg).NewCounter(prometheus.CounterOpts{
 			Name: "loki_distributor_segmentation_partition_resolver_keys_total",
 			Help: "Total number of segmentation keys passed to the resolver.",
+		}),
+		streamSharded: promauto.With(reg).NewCounter(prometheus.CounterOpts{
+			Name: "loki_distributor_segmentation_partition_resolver_stream_sharded_total",
+			Help: "Total number of streams that were stream sharded.",
 		}),
 		logger: logger,
 	}
@@ -109,6 +114,7 @@ func (r *segmentationPartitionResolver) Resolve(ctx context.Context, tenant stri
 	// If the rate is 0, we cannot make a decision to shuffle shard the segmentation
 	// key. We fallback to choosing a partition for the hash key.
 	if rateBytes == 0 {
+		r.streamSharded.Inc()
 		return subring.ActivePartitionForKey(hashKey)
 	}
 	numShuffleShardPartitions := numPartitionsForRate(rateBytes, r.perPartitionRateBytes, subring.ActivePartitionsCount())
