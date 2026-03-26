@@ -75,6 +75,7 @@ type DataObjTee struct {
 	// Metrics.
 	streams         prometheus.Counter
 	streamFailures  prometheus.Counter
+	estimateBytes   *prometheus.GaugeVec
 	producedBytes   *prometheus.CounterVec
 	producedRecords *prometheus.CounterVec
 }
@@ -104,6 +105,10 @@ func NewDataObjTee(
 			Name: "loki_distributor_dataobj_tee_duplicate_stream_failures_total",
 			Help: "Total number of streams that could not be duplicated.",
 		}),
+		estimateBytes: promauto.With(r).NewGaugeVec(prometheus.GaugeOpts{
+			Name: "loki_distributor_dataobj_tee_estimate_bytes",
+			Help: "Estimated throughput for each segmentation key.",
+		}, []string{"tenant", "segmentation_key"}),
 		// The tenant and segmentation key labels are not emitted unless debug metrics
 		// are enabled.
 		producedBytes: promauto.With(r).NewCounterVec(prometheus.CounterOpts{
@@ -187,6 +192,10 @@ func (t *DataObjTee) Duplicate(ctx context.Context, tenant string, streams []Key
 
 	for _, s := range segmentationKeyStreams {
 		go func(stream segmentedStream) {
+			if t.cfg.DebugMetricsEnabled {
+				t.estimateBytes.WithLabelValues(tenant, string(stream.SegmentationKey)).
+					Set(float64(fastRates[stream.SegmentationKeyHash]))
+			}
 			t.duplicate(ctx, tenant, stream, fastRates[stream.SegmentationKeyHash], tenantRateBytesLimit, pushTracker)
 		}(s)
 	}
