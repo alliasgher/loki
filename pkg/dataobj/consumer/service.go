@@ -239,6 +239,7 @@ func NewInMemory(cfg Config, mCfg metastore.Config, bucket objstore.Bucket, scra
 		logger,
 		wrapped,
 	)
+	s.processor.inMemoryShutdownDrainEnabled = true
 
 	s.Service = services.NewBasicService(s.inMemoryStarting, s.running, s.inMemoryStopping)
 	return s, nil

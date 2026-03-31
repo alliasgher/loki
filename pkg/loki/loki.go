@@ -365,6 +365,8 @@ func (c *Config) Validate() error {
 			errs = append(errs, errors.Wrap(err, "CONFIG ERROR: invalid dataobj config"))
 		}
 	}
+	// In inmemory dataobj mode, the distributor write path is provided by an in-process tee.
+	c.Distributor.AllowNoWritePath = c.DataObj.Enabled && c.DataObj.Consumer.IngestMode == consumer.IngestModeInMemory
 	if err := c.Distributor.Validate(); err != nil {
 		errs = append(errs, errors.Wrap(err, "CONFIG ERROR: invalid distributor config"))
 	}

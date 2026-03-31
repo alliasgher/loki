@@ -46,6 +46,9 @@ type processor struct {
 	decoder        *kafka.Decoder
 	records        chan *kgo.Record
 	flushCommitter flushCommitter
+	// inMemoryShutdownDrainEnabled enables shutdown channel drain/flush behavior
+	// used only by the inmemory consumer wiring.
+	inMemoryShutdownDrainEnabled bool
 	// flushRequests is used to safely trigger a flush from outside the Run loop.
 	flushRequests chan flushRequest
 
@@ -132,6 +135,10 @@ func (p *processor) running(ctx context.Context) error {
 // The records channel remains open (owned by Service) and may still have
 // buffered records written by the distributor before the push timeout fired.
 func (p *processor) stopping(_ error) error {
+	if !p.inMemoryShutdownDrainEnabled {
+		return nil
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 

@@ -106,6 +106,7 @@ type Config struct {
 
 	KafkaEnabled              bool `yaml:"kafka_writes_enabled"`
 	IngesterEnabled           bool `yaml:"ingester_writes_enabled"`
+	AllowNoWritePath          bool `yaml:"-"`
 	IngestLimitsEnabled       bool `yaml:"ingest_limits_enabled"`
 	IngestLimitsDryRunEnabled bool `yaml:"ingest_limits_dry_run_enabled"`
 
@@ -135,6 +136,10 @@ func (cfg *Config) RegisterFlags(fs *flag.FlagSet) {
 }
 
 func (cfg *Config) Validate() error {
+	if !cfg.AllowNoWritePath && !cfg.KafkaEnabled && !cfg.IngesterEnabled {
+		return fmt.Errorf("at least one of kafka_writes_enabled or ingester_writes_enabled must be true")
+	}
+
 	if err := cfg.DataObjTeeConfig.Validate(); err != nil {
 		return err
 	}
