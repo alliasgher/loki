@@ -76,8 +76,7 @@ func (sink *streamSink) lazyInit() {
 // Calls to Send block until:
 //
 //   - There is a bound address for the destination.
-//   - The record has been sent successfully to the destination but not yet
-//     acknowledged by the peer.
+//   - The record has been acknowledged by the peer.
 //
 // Send will attempt to re-establish connection to the destination if the
 // connection is lost.
@@ -97,7 +96,13 @@ func (sink *streamSink) Send(ctx context.Context, rec arrow.RecordBatch) (messag
 		// nonretryable.
 		resp, err := sink.send(ctx, rec)
 		if err == nil {
-			return resp, nil
+			// Retry logic must include waiting for ACK/NACK since connection
+			// failures can happen after dispatch succeeds.
+			err = resp.Wait(ctx)
+			if err == nil {
+				return nil, nil
+			}
+			err = fmt.Errorf("waiting for acknowledgement from peer: %w", err)
 		}
 
 		if !sink.isRetryable(err) {
