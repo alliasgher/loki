@@ -180,6 +180,7 @@ func (p *Peer) notifyError(frame Frame, err error) {
 			return
 		}
 		req := val.(*request)
+		defer p.sentRequests.Delete(frame.ID)
 
 		select {
 		case <-p.done: // Connection closed
