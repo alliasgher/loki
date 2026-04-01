@@ -44,6 +44,13 @@ func parseFn(op types.VariadicOp) VariadicFunction {
 				panic(err)
 			}
 			headers, parsedColumns = buildJSONColumns(input, sourceCol, requestedKeys)
+		case types.VariadicOpParseRegexp:
+			var pattern string
+			sourceCol, pattern, err = extractRegexpParameters(args)
+			if err != nil {
+				panic(err)
+			}
+			headers, parsedColumns = buildRegexpColumns(input, sourceCol, pattern)
 		case types.VariadicOpParseLinefmt:
 			sourceCol, _, lineFmtTemplate, err = extractLineFmtParameters(args)
 			if err != nil {
@@ -162,6 +169,34 @@ func extractLabelFmtParameters(args []arrow.Array) (*array.String, []string, []l
 
 	return sourceCol, nil, labelFmts, nil
 
+}
+
+func extractRegexpParameters(args []arrow.Array) (*array.String, string, error) {
+	if len(args) != 2 {
+		return nil, "", fmt.Errorf("parse function expected 2 arguments, got %d", len(args))
+	}
+
+	sourceColArr := args[0]
+	patternArr := args[1]
+
+	if sourceColArr == nil {
+		return nil, "", fmt.Errorf("parse function arguments did not include a source ColumnVector to parse")
+	}
+
+	sourceCol, ok := sourceColArr.(*array.String)
+	if !ok {
+		return nil, "", fmt.Errorf("parse can only operate on string column types, got %T", sourceColArr)
+	}
+
+	stringArr, ok := patternArr.(*array.String)
+	if !ok {
+		return nil, "", fmt.Errorf("regexp pattern must be a string, got %T", patternArr)
+	}
+	if stringArr.Len() == 0 {
+		return nil, "", fmt.Errorf("regexp pattern cannot be empty")
+	}
+
+	return sourceCol, stringArr.Value(0), nil
 }
 
 func extractParseFnParameters(args []arrow.Array) (*array.String, []string, bool, bool, error) {

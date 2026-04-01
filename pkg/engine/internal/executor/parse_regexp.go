@@ -57,15 +57,18 @@ func (r *regexpParser) process(line string) (map[string]string, error) {
 	return result, nil
 }
 
-func buildRegexpColumns(input *array.String, pattern string) ([]string, []arrow.Array) {
+func buildRegexpColumns(input arrow.RecordBatch, sourceCol *array.String, pattern string) ([]string, []arrow.Array) {
 	parser, err := newRegexpParser(pattern)
 	if err != nil {
-		return buildErrorColumns(input, "RegexpParseErr", err.Error())
+		parseFunc := func(_ arrow.RecordBatch, _ string) (map[string]string, error) {
+			return nil, err
+		}
+		return buildColumns(input, sourceCol, nil, parseFunc, "RegexpParseErr")
 	}
 
-	parseFunc := func(line string) (map[string]string, error) {
+	parseFunc := func(_ arrow.RecordBatch, line string) (map[string]string, error) {
 		return parser.process(line)
 	}
 
-	return buildColumns(input, nil, parseFunc, "RegexpParseErr")
+	return buildColumns(input, sourceCol, nil, parseFunc, "RegexpParseErr")
 }

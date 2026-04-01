@@ -150,11 +150,6 @@ func buildPlanForLogQuery(
 				err = unimplementedFeature("drop with named matchers")
 				return false // do not traverse children
 			}
-			dropCols := make([]Value, 0, len(e.Names()))
-			for _, name := range e.Names() {
-				value := NewColumnRef(name, types.ColumnTypeAmbiguous)
-				dropCols = append(dropCols, value)
-			}
 			return true
 		default:
 			err = errUnimplemented
@@ -281,11 +276,9 @@ func buildPlanForLogQuery(
 			err = errUnimplemented
 			return false // do not traverse children
 		case *syntax.LineFmtExpr:
-			err = unimplementedFeature("line_format")
-			return false // do not traverse children
+			return true
 		case *syntax.LabelFmtExpr:
-			err = unimplementedFeature("label_format")
-			return false // do not traverse children
+			return true
 		case *syntax.KeepLabelsExpr:
 			err = unimplementedFeature("keep")
 			return false // do not traverse children
@@ -610,10 +603,6 @@ func convertLineFilter(filter syntax.LineFilter) Value {
 		Right: NewLiteral(filter.Match),
 		Op:    convertLineMatchType(filter.Ty),
 	}
-}
-
-func convertLineFormat(value string) Value {
-	return &UnaryOp{Op: types.UnaryOpParseLinefmt, Value: NewLiteral(value)}
 }
 
 func convertBinaryArithmeticOp(op string) types.BinaryOp {
