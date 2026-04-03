@@ -880,6 +880,40 @@ RETURN %17
 }
 
 func TestPlannerCreatesProjection(t *testing.T) {
+	t.Run("multiple line format stages keep their own template", func(t *testing.T) {
+		q := &query{
+			statement: `{service_name="loki"} | line_format "first" | line_format "second"`,
+			start:     0,
+			end:       3600,
+			interval:  5 * time.Minute,
+			direction: logproto.BACKWARD,
+		}
+
+		plan, err := BuildPlan(context.Background(), q)
+		require.NoError(t, err)
+
+		planString := plan.String()
+		require.Contains(t, planString, `PARSE_LINEFMT(builtin.message, [], "first")`)
+		require.Contains(t, planString, `PARSE_LINEFMT(builtin.message, [], "second")`)
+	})
+
+	t.Run("multiple label format stages keep their own template", func(t *testing.T) {
+		q := &query{
+			statement: `{service_name="loki"} | label_format cluster="us" | label_format cluster="eu"`,
+			start:     0,
+			end:       3600,
+			interval:  5 * time.Minute,
+			direction: logproto.BACKWARD,
+		}
+
+		plan, err := BuildPlan(context.Background(), q)
+		require.NoError(t, err)
+
+		planString := plan.String()
+		require.Contains(t, planString, `PARSE_LABELFMT(builtin.message, [], [{Name:"cluster", Value:"us", Rename:false}])`)
+		require.Contains(t, planString, `PARSE_LABELFMT(builtin.message, [], [{Name:"cluster", Value:"eu", Rename:false}])`)
+	})
+
 	t.Run("drop labels", func(t *testing.T) {
 		q := &query{
 			statement: `{service_name="loki"} | drop level, detected_level`,

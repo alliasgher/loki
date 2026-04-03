@@ -9,8 +9,10 @@ import (
 	"github.com/apache/arrow-go/v18/arrow/memory"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/loki/v3/pkg/engine/internal/planner/physical"
 	"github.com/grafana/loki/v3/pkg/engine/internal/semconv"
 	"github.com/grafana/loki/v3/pkg/engine/internal/types"
+	"github.com/grafana/loki/v3/pkg/util/arrowtest"
 )
 
 func TestLinefmtParser_Process(t *testing.T) {
@@ -93,4 +95,37 @@ func TestLinefmtParser_Process(t *testing.T) {
 			require.Equal(t, tt.want, result["message"])
 		})
 	}
+}
+
+func TestLinefmtParser_ErrorType(t *testing.T) {
+	expr := &physical.VariadicExpr{
+		Op: types.VariadicOpParseLinefmt,
+		Expressions: []physical.Expression{
+			&physical.ColumnExpr{Ref: semconv.ColumnIdentMessage.ColumnRef()},
+			physical.NewLiteral([]string{}),
+			physical.NewLiteral("{{."),
+		},
+	}
+	e := newExpressionEvaluator()
+	schema := arrow.NewSchema([]arrow.Field{
+		semconv.FieldFromIdent(semconv.ColumnIdentMessage, true),
+		semconv.FieldFromIdent(semconv.ColumnIdentTimestamp, true),
+	}, nil)
+	input := arrowtest.Rows{
+		{
+			semconv.ColumnIdentMessage.FQN():   "line one",
+			semconv.ColumnIdentTimestamp.FQN(): time.Unix(1, 0).UTC(),
+		},
+	}
+
+	record := input.Record(memory.DefaultAllocator, schema)
+	col, err := e.eval(expr, record)
+	require.NoError(t, err)
+
+	arr, ok := col.(*array.Struct)
+	require.True(t, ok)
+	actual, err := structToRows(arr)
+	require.NoError(t, err)
+
+	require.Equal(t, types.LinefmtParserErrorType, actual[0][semconv.ColumnIdentError.FQN()])
 }
