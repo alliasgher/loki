@@ -192,7 +192,7 @@ func newExpandPipeline(expr physical.Expression, evaluator *expressionEvaluator,
 
 func idxOf(set []arrow.Field, entry arrow.Field) int {
 	for i := 0; i < len(set); i++ {
-		if set[i].Name == entry.Name && set[i].Type == entry.Type {
+		if set[i].Name == entry.Name {
 			return i
 		}
 	}
