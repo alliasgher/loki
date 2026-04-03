@@ -197,24 +197,17 @@ type LineFormatter struct {
 	simpleKey   string
 }
 
-// NewFormatter creates a new log line formatter from a given text template.
-func NewFormatter(tmpl string) (*LineFormatter, error) {
-	lf := &LineFormatter{
-		buf: bytes.NewBuffer(make([]byte, 4096)),
-	}
-
-	functions := AddLineAndTimestampFunctions(func() string {
-		return unsafeGetString(lf.currentLine)
-	}, func() int64 {
-		return lf.currentTs
-	})
+// BuildLineFormatterTemplate builds a line formatter template and returns the parsed template
+// together with its simple-key optimization target (if any).
+func BuildLineFormatterTemplate(tmpl string, currLine func() string, currTimestamp func() int64) (*template.Template, string, error) {
+	functions := AddLineAndTimestampFunctions(currLine, currTimestamp)
 
 	t, err := template.New("line").Option("missingkey=zero").Funcs(functions).Parse(tmpl)
 	if err != nil {
-		return nil, fmt.Errorf("invalid line template: %w", err)
+		return nil, "", fmt.Errorf("invalid line template: %w", err)
 	}
-	lf.Template = t
 
+	var simpleKey string
 	// determine if the template is a simple key substitution, e.g. line_format `{{.message}}`
 	// if it is, save the key name and we can use it later to directly copy the string
 	// bytes of the value to avoid copying and allocating a new string.
@@ -222,10 +215,30 @@ func NewFormatter(tmpl string) (*LineFormatter, error) {
 		actionNode := t.Root.Nodes[0].(*parse.ActionNode)
 		if len(actionNode.Pipe.Cmds) == 1 && len(actionNode.Pipe.Cmds[0].Args) == 1 {
 			if fieldNode, ok := actionNode.Pipe.Cmds[0].Args[0].(*parse.FieldNode); ok && len(fieldNode.Ident) == 1 {
-				lf.simpleKey = fieldNode.Ident[0]
+				simpleKey = fieldNode.Ident[0]
 			}
 		}
 	}
+
+	return t, simpleKey, nil
+}
+
+// NewFormatter creates a new log line formatter from a given text template.
+func NewFormatter(tmpl string) (*LineFormatter, error) {
+	lf := &LineFormatter{
+		buf: bytes.NewBuffer(make([]byte, 4096)),
+	}
+
+	t, simpleKey, err := BuildLineFormatterTemplate(tmpl, func() string {
+		return unsafeGetString(lf.currentLine)
+	}, func() int64 {
+		return lf.currentTs
+	})
+	if err != nil {
+		return nil, err
+	}
+	lf.Template = t
+	lf.simpleKey = simpleKey
 
 	return lf, nil
 }

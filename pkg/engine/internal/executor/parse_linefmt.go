@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"text/template"
-	"text/template/parse"
 	"time"
 
 	"github.com/apache/arrow-go/v18/arrow"
@@ -59,28 +58,16 @@ func NewFormatter(tmpl string) (*LineFormatter, error) {
 		buf: bytes.NewBuffer(make([]byte, 4096)),
 	}
 
-	functions := log.AddLineAndTimestampFunctions(func() string {
+	t, simpleKey, err := log.BuildLineFormatterTemplate(tmpl, func() string {
 		return unsafeString(lf.currentLine)
 	}, func() int64 {
 		return lf.currentTs
 	})
-
-	t, err := template.New("line").Option("missingkey=zero").Funcs(functions).Parse(tmpl)
 	if err != nil {
-		return nil, fmt.Errorf("invalid line template: %w", err)
+		return nil, err
 	}
 	lf.Template = t
-	// determine if the template is a simple key substitution, e.g. line_format `{{.message}}`
-	// if it is, save the key name and we can use it later to directly copy the string
-	// bytes of the value to avoid copying and allocating a new string.
-	if len(t.Root.Nodes) == 1 && t.Root.Nodes[0].Type() == parse.NodeAction {
-		actionNode := t.Root.Nodes[0].(*parse.ActionNode)
-		if len(actionNode.Pipe.Cmds) == 1 && len(actionNode.Pipe.Cmds[0].Args) == 1 {
-			if fieldNode, ok := actionNode.Pipe.Cmds[0].Args[0].(*parse.FieldNode); ok && len(fieldNode.Ident) == 1 {
-				lf.simpleKey = fieldNode.Ident[0]
-			}
-		}
-	}
+	lf.simpleKey = simpleKey
 
 	return lf, nil
 }
