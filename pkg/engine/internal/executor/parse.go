@@ -280,14 +280,13 @@ func extractParseFnParameters(args []arrow.Array) (*array.String, []string, bool
 	return sourceCol, requestedKeys, strict, keepEmpty, nil
 }
 
-// parseFunc represents a function that parses a single line and returns key-value pairs
+// parseFunc represents a function that parses a single line and returns key-value pairs.
 type parseFunc func(recordRow arrow.RecordBatch, line string) (map[string]string, error)
 
-// buildColumns builds Arrow columns from input lines using the provided parser
-// Returns the column headers, the Arrow columns, and any error
-func buildColumns(input arrow.RecordBatch, sourceCol *array.String, _ []string, parseFunc parseFunc, errorType string) ([]string, []arrow.Array) {
+// buildColumns builds Arrow columns from input lines using the provided parser.
+func buildColumns(input arrow.RecordBatch, sourceCol *array.String, _ []string, parseFunc parseFunc, errorType string, needsInputRow bool) ([]string, []arrow.Array) {
 	columnBuilders := make(map[string]*array.StringBuilder)
-	columnOrder := parseLines(input, sourceCol, columnBuilders, parseFunc, errorType)
+	columnOrder := parseLines(input, sourceCol, columnBuilders, parseFunc, errorType, needsInputRow)
 
 	// Build final arrays
 	columns := make([]arrow.Array, 0, len(columnOrder))
@@ -302,16 +301,22 @@ func buildColumns(input arrow.RecordBatch, sourceCol *array.String, _ []string, 
 	return headers, columns
 }
 
-// parseLines discovers columns dynamically as lines are parsed
-func parseLines(input arrow.RecordBatch, sourceCol *array.String, columnBuilders map[string]*array.StringBuilder, parseFunc parseFunc, errorType string) []string {
+// parseLines discovers columns dynamically as lines are parsed.
+func parseLines(input arrow.RecordBatch, sourceCol *array.String, columnBuilders map[string]*array.StringBuilder, parseFunc parseFunc, errorType string, needsInputRow bool) []string {
 	columnOrder := []string{}
 	var errorBuilder, errorDetailsBuilder *array.StringBuilder
 	hasErrorColumns := false
 
 	for i := 0; i < sourceCol.Len(); i++ {
 		line := sourceCol.Value(i)
-		// pass the corresponding row of input as well
-		parsed, err := parseFunc(input.NewSlice(int64(i), int64(i+1)), line)
+		var row arrow.RecordBatch
+		if needsInputRow {
+			row = input.NewSlice(int64(i), int64(i+1))
+		}
+		parsed, err := parseFunc(row, line)
+		if row != nil {
+			row.Release()
+		}
 
 		// Handle error columns
 		if err != nil {

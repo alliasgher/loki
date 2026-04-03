@@ -67,5 +67,5 @@ func buildRegexpColumns(input arrow.RecordBatch, sourceCol *array.String, patter
 		return parser.process(line)
 	}
 
-	return buildColumns(input, sourceCol, nil, parseFunc, "RegexpParseErr")
+	return buildColumns(input, sourceCol, nil, parseFunc, "RegexpParseErr", false)
 }
