@@ -311,7 +311,9 @@ func parseLines(input arrow.RecordBatch, sourceCol *array.String, columnBuilders
 	for i := 0; i < sourceCol.Len(); i++ {
 		line := sourceCol.Value(i)
 		// pass the corresponding row of input as well
-		parsed, err := parseFunc(input.NewSlice(int64(i), int64(i+1)), line)
+		recordRow := input.NewSlice(int64(i), int64(i+1))
+		parsed, err := parseFunc(recordRow, line)
+		recordRow.Release()
 
 		// Handle error columns
 		if err != nil {
