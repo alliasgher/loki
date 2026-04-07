@@ -154,7 +154,7 @@ func (b *rateBatcher) Add(ctx context.Context, tenant string, streams []segmente
 	var unknownStreams []*proto.StreamMetadata
 	for _, stream := range streams {
 		hash := stream.SegmentationKeyHash
-		if rates[hash] != 0 {
+		if _, ok := rates[hash]; ok {
 			// we already have a rate for this stream, no need to lookup.
 			continue
 		}

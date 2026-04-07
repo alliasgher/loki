@@ -528,3 +528,47 @@ func TestRateBatcher_FallbackDoesNotDoubleCountSize(t *testing.T) {
 	require.Equal(t, expectedSize, totalReported,
 		"TotalSize for hash 100 should be reported exactly once across all requests; got %d, want %d", totalReported, expectedSize)
 }
+
+type zeroRateMockUpdateRatesClient struct {
+	mu    sync.Mutex
+	calls int
+}
+
+func (m *zeroRateMockUpdateRatesClient) UpdateRatesRaw(_ context.Context, req *proto.UpdateRatesRequest) ([]*proto.UpdateRatesResult, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls++
+
+	results := make([]*proto.UpdateRatesResult, len(req.Streams))
+	for i, stream := range req.Streams {
+		results[i] = &proto.UpdateRatesResult{
+			StreamHash: stream.StreamHash,
+			Rate:       0,
+		}
+	}
+	return results, nil
+}
+
+func TestRateBatcher_ZeroRateIsNotTreatedAsUnknown(t *testing.T) {
+	client := &zeroRateMockUpdateRatesClient{}
+	batcher := newRateBatcher(
+		RateBatcherConfig{
+			BatchWindow: time.Hour,
+		},
+		client,
+		log.NewNopLogger(),
+		prometheus.NewRegistry(),
+	)
+
+	stream := segmentedStream{SegmentationKeyHash: 100}
+
+	rates := batcher.Add(context.Background(), "tenant1", []segmentedStream{stream})
+	require.Equal(t, uint64(0), rates[100])
+
+	rates = batcher.Add(context.Background(), "tenant1", []segmentedStream{stream})
+	require.Equal(t, uint64(0), rates[100])
+
+	client.mu.Lock()
+	require.Equal(t, 1, client.calls)
+	client.mu.Unlock()
+}
