@@ -73,6 +73,18 @@ func evaluateWithSelection(alloc *memory.Allocator, expr Expression, input colum
 
 		return s.Field(columnIndex), nil
 
+	case *Extract:
+		return evaluateExtract(alloc, expr, input, selection)
+
+	case *Include:
+		return evaluateInclude(alloc, expr, input, selection)
+
+	case *Exclude:
+		return evaluateExclude(alloc, expr, input, selection)
+
+	case *MakeStruct:
+		return evaluateMakeStruct(alloc, expr, input, selection)
+
 	case *Unary:
 		return evaluateUnary(alloc, expr, input, selection)
 
