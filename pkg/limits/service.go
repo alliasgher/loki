@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -204,17 +205,22 @@ func (s *Service) UpdateRates(
 		Results: make([]*proto.UpdateRatesResult, len(updated)),
 	}
 	for i, stream := range updated {
-		var totalSize uint64
-		for _, bucket := range stream.rateBuckets {
-			totalSize += bucket.size
-		}
-		// The average rate is calculated over the total number of
-		// populated buckets. This allows us to calculate accurate rates
-		// without empty buckets pulling down the average.
-		averageRate := totalSize / (uint64(s.cfg.BucketSize.Seconds()) * uint64(len(stream.rateBuckets)))
+		// Sort the buckets.
+		slices.SortFunc(stream.rateBuckets, func(a, b rateBucket) int {
+			if a.size < b.size {
+				return -1
+			} else if a.size == b.size {
+				return 0
+			} else {
+				return 1
+			}
+		})
+		// Get the 95th percentile bucket.
+		bucketIdx := int(float64(len(stream.rateBuckets)) * 0.95)
+		bucket := stream.rateBuckets[bucketIdx]
 		resp.Results[i] = &proto.UpdateRatesResult{
 			StreamHash: stream.hash,
-			Rate:       averageRate,
+			Rate:       bucket.size / uint64(s.cfg.BucketSize.Seconds()),
 		}
 	}
 	return &resp, nil
