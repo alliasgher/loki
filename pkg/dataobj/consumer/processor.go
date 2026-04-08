@@ -159,10 +159,6 @@ func (p *processor) processRecord(ctx context.Context, rec *kgo.Record) error {
 	now := time.Now()
 	p.observeRecord(rec, now)
 
-	// Find the 12 hour window.
-	window := rec.Timestamp.UTC().Truncate(12 * time.Hour)
-	p.timePartitionedEstimates[window] = struct{}{}
-
 	// Try to decode the stream in the record.
 	tenant := string(rec.Key)
 	stream, err := p.decoder.DecodeWithoutLabels(rec.Value)
@@ -188,6 +184,10 @@ func (p *processor) processRecord(ctx context.Context, rec *kgo.Record) error {
 			return fmt.Errorf("failed to append stream after flushing: %w", err)
 		}
 	}
+
+	// Find the 12 hour window.
+	window := rec.Timestamp.UTC().Truncate(12 * time.Hour)
+	p.timePartitionedEstimates[window] = struct{}{}
 
 	if p.earliestRecordTime.IsZero() || rec.Timestamp.Before(p.earliestRecordTime) {
 		p.earliestRecordTime = rec.Timestamp
