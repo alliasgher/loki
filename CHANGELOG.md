@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.6.11](https://github.com/grafana/loki/compare/v3.6.10...v3.6.11) (2026-04-09)
+
+
+### Bug Fixes
+
+* **deps:** update module go.opentelemetry.io/otel/sdk to v1.43.0 [security] (release-3.6.x) ([#21480](https://github.com/grafana/loki/issues/21480)) ([47fb29e](https://github.com/grafana/loki/commit/47fb29ec07fd0c1a3c4ee50e73b84d17f7bc322f))
+
 ## [3.6.10](https://github.com/grafana/loki/compare/v3.6.8...v3.6.10) (2026-04-02)
 
 ### Bug Fixes
