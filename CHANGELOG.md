@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.7.2](https://github.com/grafana/loki/compare/v3.7.1...v3.7.2) (2026-04-09)
+
+
+### Bug Fixes
+
+* Fix ruler panic related to unset validation scheme (backport release-3.7.x) ([#21401](https://github.com/grafana/loki/issues/21401)) ([cf65729](https://github.com/grafana/loki/commit/cf65729674b1f0be8011223c474df3e2e5253216))
+
 ## [3.7.1](https://github.com/grafana/loki/compare/v3.7.0...v3.7.1) (2026-03-26)
 
 
