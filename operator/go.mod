@@ -1,6 +1,6 @@
 module github.com/grafana/loki/operator
 
-go 1.26.2
+go 1.26
 
 require (
 	dario.cat/mergo v1.0.2
