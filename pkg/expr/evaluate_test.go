@@ -183,6 +183,13 @@ func TestEvaluate_Include(t *testing.T) {
 		columnartest.RequireDatumsEqual(t, expect, result, memory.Bitmap{})
 	})
 
+	t.Run("duplicate names rejected", func(t *testing.T) {
+		e := &expr.Include{Names: []string{"name", "name"}, Value: &expr.Identity{}}
+
+		_, err := expr.Evaluate(&alloc, e, record, memory.Bitmap{})
+		require.Error(t, err)
+	})
+
 	t.Run("non-struct value", func(t *testing.T) {
 		e := &expr.Include{
 			Names: []string{"x"},

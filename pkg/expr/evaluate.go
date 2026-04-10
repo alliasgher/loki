@@ -138,12 +138,17 @@ func evaluateInclude(alloc *memory.Allocator, expr *Include, input columnar.Datu
 	var (
 		columns []columnar.Column
 		fields  []columnar.Array
+		seen    = make(map[string]struct{}, len(expr.Names))
 	)
 	for _, name := range expr.Names {
 		_, idx := s.Schema().ColumnIndex(name)
 		if idx == -1 {
 			continue
 		}
+		if _, ok := seen[name]; ok {
+			return nil, fmt.Errorf("Include: duplicate field name %q", name)
+		}
+		seen[name] = struct{}{}
 		columns = append(columns, columnar.Column{Name: name})
 		fields = append(fields, s.Field(idx))
 	}
